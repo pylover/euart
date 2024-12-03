@@ -1,0 +1,6 @@
+menu "euart"
+	config EUART_BUFFSIZE
+		int "EUART buffer size"
+        default 2048 
+	
+endmenu
