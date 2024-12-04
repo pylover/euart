@@ -5,26 +5,28 @@
 #include <uaio.h>
 
 
-#define CUIF_STDIO  0x1
+#define EUIF_STDIO  0x1
 
 
 #define EUART_FLUSH(c) fsync((c)->fd)
+#define EUART_PRINTF(u, ...) dprintf((u)->outfd, __VA_ARGS__)
 
 
 typedef struct euart {
-    int fd;
+    int infd;
+    int outfd;
 } euart_t;
 
 
 enum euart_chatstatus {
-    CUCS_OK,
-    CUCS_TIMEDOUT,
-    CUCS_ERROR,
+    EUCS_OK,
+    EUCS_TIMEDOUT,
+    EUCS_ERROR,
 };
 
 
 enum euart_chatflags {
-    CUCF_DROPEMPTYLINES = 1,
+    EUCF_DROPEMPTYLINES = 1,
 };
 
 
@@ -52,9 +54,6 @@ struct euart_chat {
 #define UAIO_ENTITY euart
 #define UAIO_ARG1 struct euart_chat *
 #include "uaio_generic.h"
-
-
-#define EUART_PRINTF(u, ...) dprintf((u)->fd, __VA_ARGS__)
 
 
 int

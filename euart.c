@@ -49,8 +49,9 @@ euart_init(struct euart *u, int no, int txpin, int rxpin, int flags) {
     ESP_ERROR_CHECK(uart_param_config(no, &uart_config));
     uart_vfs_dev_use_driver(no);
 
-    if (flags & CUIF_STDIO) {
-        u->fd = STDIN_FILENO;
+    if (flags & EUIF_STDIO) {
+        u->infd = STDIN_FILENO;
+        u->outfd = STDOUT_FILENO;
     }
     else {
         char path[16];
@@ -61,7 +62,8 @@ euart_init(struct euart *u, int no, int txpin, int rxpin, int flags) {
             return -1;
         }
 
-        u->fd = fd;
+        u->infd = fd;
+        u->outfd = fd;
     }
     return 0;
 }
@@ -72,18 +74,18 @@ euart_getc(struct uaio_task *self, struct euart *u, struct euart_chat *c) {
     UAIO_BEGIN(self);
     while (true) {
         if (c->timeout_us) {
-            UAIO_FILE_TWAIT(self, u->fd, UAIO_IN, c->timeout_us);
+            UAIO_FILE_TWAIT(self, u->infd, UAIO_IN, c->timeout_us);
             if (UAIO_FILE_TIMEDOUT(self)) {
-                c->status = CUCS_TIMEDOUT;
+                c->status = EUCS_TIMEDOUT;
                 break;
             }
         }
         else {
-            UAIO_FILE_AWAIT(self, u->fd, UAIO_IN);
+            UAIO_FILE_AWAIT(self, u->infd, UAIO_IN);
         }
 
-        if (read(u->fd, &c->result.uint8, 1) == 1) {
-            c->status = CUCS_OK;
+        if (read(u->infd, &c->result.uint8, 1) == 1) {
+            c->status = EUCS_OK;
             break;
         }
     }
@@ -106,7 +108,7 @@ euart_readA(struct uaio_task *self, struct euart *u, struct euart_chat *c) {
 
     while (c->query.count) {
         UAIO_AWAIT(self, euart, euart_getc, u, c->userptr);
-        if (subchat->status != CUCS_OK) {
+        if (subchat->status != EUCS_OK) {
             c->status = subchat->status;
             break;
         }
