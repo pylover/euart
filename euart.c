@@ -1,9 +1,8 @@
 #include <fcntl.h>
 #include <errno.h>
 
-#include <clog.h>
-#include <caio/caio.h>
-#include <caio/sleep.h>
+#include <elog.h>
+#include <uaio.h>
 
 #include "driver/uart_vfs.h"
 #include "driver/uart.h"
@@ -11,12 +10,12 @@
 #include "euart.h"
 
 
-#undef CAIO_ARG1
-#undef CAIO_ARG2
-#undef CAIO_ENTITY
-#define CAIO_ENTITY euart
-#define CAIO_ARG1 struct euart_chat *
-#include "caio/generic.c"
+#undef UAIO_ARG1
+#undef UAIO_ARG2
+#undef UAIO_ENTITY
+#define UAIO_ENTITY euart
+#define UAIO_ARG1 struct euart_chat *
+#include "uaio_generic.c"
 
 
 int
@@ -69,18 +68,18 @@ euart_init(struct euart *u, int no, int txpin, int rxpin, int flags) {
 
 
 ASYNC
-euart_getc(struct caio_task *self, struct euart *u, struct euart_chat *c) {
-    CAIO_BEGIN(self);
+euart_getc(struct uaio_task *self, struct euart *u, struct euart_chat *c) {
+    UAIO_BEGIN(self);
     while (true) {
         if (c->timeout_us) {
-            CAIO_FILE_TWAIT(self, u->fd, CAIO_IN, c->timeout_us);
-            if (CAIO_FILE_TIMEDOUT(self)) {
+            UAIO_FILE_TWAIT(self, u->fd, UAIO_IN, c->timeout_us);
+            if (UAIO_FILE_TIMEDOUT(self)) {
                 c->status = CUCS_TIMEDOUT;
                 break;
             }
         }
         else {
-            CAIO_FILE_AWAIT(self, u->fd, CAIO_IN);
+            UAIO_FILE_AWAIT(self, u->fd, UAIO_IN);
         }
 
         if (read(u->fd, &c->result.uint8, 1) == 1) {
@@ -88,25 +87,25 @@ euart_getc(struct caio_task *self, struct euart *u, struct euart_chat *c) {
             break;
         }
     }
-    CAIO_FINALLY(self);
+    UAIO_FINALLY(self);
 }
 
 
 ASYNC
-euart_readA(struct caio_task *self, struct euart *u, struct euart_chat *c) {
+euart_readA(struct uaio_task *self, struct euart *u, struct euart_chat *c) {
     struct euart_chat *subchat = malloc(sizeof(struct euart_chat));
     memset(subchat, 0, sizeof(struct euart_chat));
     subchat->timeout_us = c->timeout_us;
     subchat->query.count = 1;
     c->userptr = subchat;
-    CAIO_BEGIN(self);
+    UAIO_BEGIN(self);
 
     if (c->userptr == NULL) {
-        CAIO_THROW(self, ENOMEM);
+        UAIO_THROW(self, ENOMEM);
     }
 
     while (c->query.count) {
-        CAIO_AWAIT(self, euart, euart_getc, u, c->userptr);
+        UAIO_AWAIT(self, euart, euart_getc, u, c->userptr);
         if (subchat->status != CUCS_OK) {
             c->status = subchat->status;
             break;
@@ -114,7 +113,7 @@ euart_readA(struct caio_task *self, struct euart *u, struct euart_chat *c) {
         c->query.count--;
     }
 
-    CAIO_FINALLY(self);
+    UAIO_FINALLY(self);
     if (subchat) {
         free(subchat);
         c->userptr = NULL;
@@ -123,19 +122,19 @@ euart_readA(struct caio_task *self, struct euart *u, struct euart_chat *c) {
 
 
 // ASYNC
-// euart_retryA(struct caio_task *self, struct euart *u,
+// euart_retryA(struct uaio_task *self, struct euart *u,
 //         struct euart_chat *c) {
-//     CAIO_BEGIN(self);
+//     UAIO_BEGIN(self);
 //     c->query.str = "AT";
 //     c->flags = MQF_IGNOREEMPTYLINES;
 //     c->status = MQS_TOUT;
 //     c->timeout_us = 1000000;
 //     c->answersize = 0;
-//     CAIO_AWAIT(self, euart, euart_dialogueA, u->uart, c);
+//     UAIO_AWAIT(self, euart, euart_dialogueA, u->uart, c);
 //     while (c->status != MQS_OK) {
-//         CAIO_SLEEP(self, c->);
+//         UAIO_SLEEP(self, c->);
 //         c->answersize = 0;
-//         CAIO_AWAIT(self, modem, modem_queryA, m, c);
+//         UAIO_AWAIT(self, modem, modem_queryA, m, c);
 //     }
-//     CAIO_FINALLY(self);
+//     UAIO_FINALLY(self);
 // }
