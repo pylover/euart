@@ -47,7 +47,12 @@ euart_init(struct euart *u, int no, int txpin, int rxpin, int flags) {
     }
 
     ESP_ERROR_CHECK(uart_param_config(no, &uart_config));
+
     uart_vfs_dev_use_driver(no);
+    // if (flags & EUIF_NONBLOCK) {
+    //     INFO("Using vfs nonblock driver");
+    //     uart_vfs_dev_use_nonblocking(no);
+    // }
 
     if (flags & EUIF_STDIO) {
         u->infd = STDIN_FILENO;
@@ -55,8 +60,12 @@ euart_init(struct euart *u, int no, int txpin, int rxpin, int flags) {
     }
     else {
         char path[16];
+        int f = O_RDWR;
+        if (flags & EUIF_NONBLOCK) {
+            f |= O_NONBLOCK;
+        }
         sprintf(path, "/dev/uart/%d", no);
-        int fd = open(path, O_RDWR);
+        int fd = open(path, f);
         if (fd == -1) {
             ERROR("open(%s)", path);
             return -1;
@@ -70,26 +79,41 @@ euart_init(struct euart *u, int no, int txpin, int rxpin, int flags) {
 
 
 ASYNC
-euart_getc(struct uaio_task *self, struct euart *u, struct euart_chat *c) {
+euart_getcA(struct uaio_task *self, struct euart *u, struct euart_chat *c) {
+    int ret;
     UAIO_BEGIN(self);
-    while (true) {
-        if (c->timeout_us) {
-            UAIO_FILE_TWAIT(self, u->infd, UAIO_IN, c->timeout_us);
-            if (UAIO_FILE_TIMEDOUT(self)) {
-                c->status = EUCS_TIMEDOUT;
-                break;
-            }
-        }
-        else {
-            UAIO_FILE_AWAIT(self, u->infd, UAIO_IN);
-        }
 
-        if (read(u->infd, &c->result.uint8, 1) == 1) {
-            c->status = EUCS_OK;
-            break;
+doread:
+    errno = 0;
+    ret = read(u->infd, &c->result.uint8, 1);
+    if (ret == 1) {
+        c->status = EUCS_OK;
+    }
+    else if ((ret == -1) && UAIO_MUSTWAIT(errno)) {
+        goto dowait;
+    }
+    else {
+        c->status = EUCS_ERROR;
+    }
+
+    UAIO_RETURN(self);
+
+dowait:
+    if (c->timeout_us) {
+        UAIO_FILE_TWAIT(self, u->infd, UAIO_IN, c->timeout_us);
+        if (UAIO_FILE_TIMEDOUT(self)) {
+            c->status = EUCS_TIMEDOUT;
+            UAIO_RETURN(self);
         }
     }
+    else {
+        UAIO_FILE_AWAIT(self, u->infd, UAIO_IN);
+    }
+
+    goto doread;
+
     UAIO_FINALLY(self);
+    errno = 0;
 }
 
 
@@ -107,7 +131,7 @@ euart_readA(struct uaio_task *self, struct euart *u, struct euart_chat *c) {
     }
 
     while (c->query.count) {
-        UAIO_AWAIT(self, euart, euart_getc, u, c->userptr);
+        UAIO_AWAIT(self, euart, euart_getcA, u, c->userptr);
         if (subchat->status != EUCS_OK) {
             c->status = subchat->status;
             break;

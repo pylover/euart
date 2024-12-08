@@ -6,6 +6,7 @@
 
 
 #define EUIF_STDIO  0x1
+#define EUIF_NONBLOCK 0x2
 
 
 #define EUART_FLUSH(c) fsync((c)->fd)
@@ -61,7 +62,7 @@ euart_init(struct euart *u, int no, int txpin, int rxpin, int flags);
 
 
 ASYNC
-euart_getc(struct uaio_task *self, struct euart *u, struct euart_chat *q);
+euart_getcA(struct uaio_task *self, struct euart *u, struct euart_chat *q);
 
 
 ASYNC
