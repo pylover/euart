@@ -14,7 +14,7 @@
 #undef UAIO_ARG2
 #undef UAIO_ENTITY
 #define UAIO_ENTITY euart
-#define UAIO_ARG1 struct euart_chat *
+#define UAIO_ARG1 struct euart_query *
 #include "uaio_generic.c"
 
 
@@ -79,30 +79,30 @@ euart_init(struct euart *u, int no, int txpin, int rxpin, int flags) {
 
 
 ASYNC
-euart_getcA(struct uaio_task *self, struct euart *u, struct euart_chat *c) {
+euart_getcA(struct uaio_task *self, struct euart *u, struct euart_getc *g) {
     int ret;
     UAIO_BEGIN(self);
 
 doread:
     errno = 0;
-    ret = read(u->infd, &c->result.uint8, 1);
+    ret = read(u->infd, &g->c, 1);
     if (ret == 1) {
-        c->status = EUCS_OK;
+        g->status = EUCS_OK;
     }
     else if ((ret == -1) && UAIO_MUSTWAIT(errno)) {
         goto dowait;
     }
     else {
-        c->status = EUCS_ERROR;
+        g->status = EUCS_ERROR;
     }
 
     UAIO_RETURN(self);
 
 dowait:
-    if (c->timeout_us) {
-        UAIO_FILE_TWAIT(self, u->infd, UAIO_IN, c->timeout_us);
+    if (g->timeout_us) {
+        UAIO_FILE_TWAIT(self, u->infd, UAIO_IN, g->timeout_us);
         if (UAIO_FILE_TIMEDOUT(self)) {
-            c->status = EUCS_TIMEDOUT;
+            g->status = EUCS_TIMEDOUT;
             UAIO_RETURN(self);
         }
     }
@@ -118,32 +118,20 @@ dowait:
 
 
 ASYNC
-euart_readA(struct uaio_task *self, struct euart *u, struct euart_chat *c) {
-    struct euart_chat *subchat = malloc(sizeof(struct euart_chat));
-    memset(subchat, 0, sizeof(struct euart_chat));
-    subchat->timeout_us = c->timeout_us;
-    subchat->query.count = 1;
-    c->userptr = subchat;
+euart_readA(struct uaio_task *self, struct euart *u, struct euart_read *r) {
     UAIO_BEGIN(self);
 
-    if (c->userptr == NULL) {
-        UAIO_THROW(self, ENOMEM);
-    }
-
-    while (c->query.count) {
-        UAIO_AWAIT(self, euart, euart_getcA, u, c->userptr);
-        if (subchat->status != EUCS_OK) {
-            c->status = subchat->status;
+    while (r->bufflen < r->max) {
+        EUART_AWAIT(self, euart_getcA, u, r);
+        if (r->status != EUCS_OK) {
             break;
         }
-        c->query.count--;
+
+        r->buff[r->bufflen++] = r->c;
     }
 
+    r->buff[r->bufflen] = '\0';
     UAIO_FINALLY(self);
-    if (subchat) {
-        free(subchat);
-        c->userptr = NULL;
-    }
 }
 
 
@@ -154,7 +142,7 @@ euart_readA(struct uaio_task *self, struct euart *u, struct euart_chat *c) {
 //     c->query.str = "AT";
 //     c->flags = MQF_IGNOREEMPTYLINES;
 //     c->status = MQS_TOUT;
-//     c->timeout_us = 1000000;
+//     c->timebufflen = 1000000;
 //     c->answersize = 0;
 //     UAIO_AWAIT(self, euart, euart_dialogueA, u->uart, c);
 //     while (c->status != MQS_OK) {

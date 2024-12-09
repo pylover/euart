@@ -19,33 +19,38 @@ typedef struct euart {
 } euart_t;
 
 
-enum euart_chatstatus {
+enum euart_querystatus {
     EUCS_OK,
     EUCS_TIMEDOUT,
     EUCS_ERROR,
 };
 
 
-enum euart_chatflags {
-    EUCF_DROPEMPTYLINES = 1,
+struct euart_query {
+    /* set by user */
+    unsigned long timeout_us;
+    void *backref;
+
+    /* set by machine */
+    enum euart_querystatus status;
 };
 
 
-struct euart_chat {
+struct euart_getc {
+    struct euart_query;
+    char c;
+};
+
+
+struct euart_read {
+    struct euart_getc;
+
     /* set by user */
-    unsigned long timeout_us;
-    int flags;
-    void *userptr;
-    union {
-        int count;
-    } query;
+    int max;
 
     /* set by machine */
-    enum euart_chatstatus status;
-    union {
-        char uint8;
-        char *str;
-    } result;
+    char *buff;
+    int bufflen;
 };
 
 
@@ -53,8 +58,12 @@ struct euart_chat {
 #undef UAIO_ARG2
 #undef UAIO_ENTITY
 #define UAIO_ENTITY euart
-#define UAIO_ARG1 struct euart_chat *
+#define UAIO_ARG1 struct euart_query *
 #include "uaio_generic.h"
+
+
+#define EUART_AWAIT(task, coro, state, query) UAIO_AWAIT(task, euart, \
+        (euart_coro_t)coro, state, (struct euart_query *)query)
 
 
 int
@@ -62,11 +71,11 @@ euart_init(struct euart *u, int no, int txpin, int rxpin, int flags);
 
 
 ASYNC
-euart_getcA(struct uaio_task *self, struct euart *u, struct euart_chat *q);
+euart_getcA(struct uaio_task *self, struct euart *u, struct euart_getc *g);
 
 
 ASYNC
-euart_readA(struct uaio_task *self, struct euart *u, struct euart_chat *c);
+euart_readA(struct uaio_task *self, struct euart *u, struct euart_read *r);
 
 
 #endif  // EUART_H_
