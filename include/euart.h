@@ -2,6 +2,8 @@
 #define EUART_H_
 
 
+#include <driver/uart.h>
+
 #include <uaio.h>
 
 
@@ -14,6 +16,8 @@
 
 
 typedef struct euart {
+    int no;
+    int flags;
     int infd;
     int outfd;
 } euart_t;
@@ -46,10 +50,10 @@ struct euart_read {
     struct euart_getc;
 
     /* set by user */
+    char *buff;
     int max;
 
     /* set by machine */
-    char *buff;
     int bufflen;
 };
 
@@ -67,7 +71,8 @@ struct euart_read {
 
 
 int
-euart_init(struct euart *u, int no, int txpin, int rxpin, int flags);
+euart_init(struct euart *u, uart_config_t *config, int no, int txpin,
+        int rxpin, int flags);
 
 
 ASYNC

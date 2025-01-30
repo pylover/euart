@@ -1,11 +1,10 @@
 #include <fcntl.h>
 #include <errno.h>
 
+#include <driver/uart_vfs.h>
+
 #include <elog.h>
 #include <uaio.h>
-
-#include "driver/uart_vfs.h"
-#include "driver/uart.h"
 
 #include "euart.h"
 
@@ -19,34 +18,27 @@
 
 
 int
-euart_init(struct euart *u, int no, int txpin, int rxpin, int flags) {
+euart_init(struct euart *u, uart_config_t *config, int no, int txpin,
+        int rxpin, int flags) {
     // int intr_alloc_flags = 0;
 	// #if CONFIG_UART_ISR_IN_IRAM
 	//     intr_alloc_flags = ESP_INTR_FLAG_IRAM;
 	// #endif
 
-    uart_config_t uart_config = {
-        .baud_rate = 115200,
-        .data_bits = UART_DATA_8_BITS,
-        .parity    = UART_PARITY_DISABLE,
-        .stop_bits = UART_STOP_BITS_1,
-        .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
-        .source_clk = UART_SCLK_DEFAULT,
-    };
-
     // tx, rx, rts, cts
     if (uart_set_pin(no, txpin, rxpin, UART_PIN_NO_CHANGE,
-                UART_PIN_NO_CHANGE)) {
+                UART_PIN_NO_CHANGE) != ESP_OK) {
         return -1;
     }
 
     if (uart_driver_install(no, CONFIG_EUART_BUFFSIZE, 0, 0,
             NULL, 0) != ESP_OK) {
-        ERROR("uart driver installation failed");
         return -1;
     }
 
-    ESP_ERROR_CHECK(uart_param_config(no, &uart_config));
+    if (uart_param_config(no, config) != ESP_OK) {
+        return -1;
+    }
 
     uart_vfs_dev_use_driver(no);
     // if (flags & EUIF_NONBLOCK) {
@@ -74,6 +66,9 @@ euart_init(struct euart *u, int no, int txpin, int rxpin, int flags) {
         u->infd = fd;
         u->outfd = fd;
     }
+
+    u->no = no;
+    u->flags = flags;
     return 0;
 }
 
