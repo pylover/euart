@@ -11,76 +11,68 @@
 #define EUIF_NONBLOCK 0x2
 
 
-#define EUART_FLUSH(c) fsync((c)->fd)
-#define EUART_PRINTF(u, ...) dprintf((u)->outfd, __VA_ARGS__)
+#define EUART_DEVICE_FLUSH(d) fsync((d)->fd)
+#define EUART_DEVICE_PRINTF(d, ...) dprintf((d)->outfd, __VA_ARGS__)
 
 
-typedef struct euart {
+typedef struct euart_device {
     int no;
     int flags;
     int infd;
     int outfd;
-} euart_t;
+} euart_device_t;
 
 
-enum euart_querystatus {
-    EUCS_OK,
-    EUCS_TIMEDOUT,
-    EUCS_ERROR,
+enum euart_taskstatus {
+    EUTS_OK,
+    EUTS_EOF,
+    EUTS_TIMEDOUT,
+    EUTS_ERROR,
 };
 
 
-struct euart_query {
+/* abstract */
+struct euart_task {
     /* set by user */
     unsigned long timeout_us;
     void *backref;
 
     /* set by machine */
-    enum euart_querystatus status;
+    enum euart_taskstatus status;
 };
 
 
-struct euart_getc {
-    struct euart_query;
-    char c;
-};
-
-
-struct euart_read {
-    struct euart_getc;
+typedef struct euart_reader {
+    struct euart_task;
 
     /* set by user */
+    struct euart_device *device;
     char *buff;
     int max;
 
     /* set by machine */
-    int bufflen;
-};
+    int bytes;
+} euart_reader_t;
 
 
 #undef UAIO_ARG1
 #undef UAIO_ARG2
 #undef UAIO_ENTITY
-#define UAIO_ENTITY euart
-#define UAIO_ARG1 struct euart_query *
+#define UAIO_ENTITY euart_reader
 #include "uaio_generic.h"
 
 
-#define EUART_AWAIT(task, coro, state, query) UAIO_AWAIT(task, euart, \
-        (euart_coro_t)coro, state, (struct euart_query *)query)
-
-
 int
-euart_init(struct euart *u, uart_config_t *config, int no, int txpin,
-        int rxpin, int flags);
+euart_device_init(struct euart_device *d, uart_config_t *config, int no, \
+        int txpin, int rxpin, int flags);
 
 
 ASYNC
-euart_getcA(struct uaio_task *self, struct euart *u, struct euart_getc *g);
+euart_readA(struct uaio_task *self, struct euart_reader *r);
 
 
-ASYNC
-euart_readA(struct uaio_task *self, struct euart *u, struct euart_read *r);
+#define EUART_AREAD(task, reader) \
+    UAIO_AWAIT(task, euart_reader, euart_readA, reader)
 
 
 #endif  // EUART_H_

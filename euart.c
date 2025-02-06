@@ -12,14 +12,13 @@
 #undef UAIO_ARG1
 #undef UAIO_ARG2
 #undef UAIO_ENTITY
-#define UAIO_ENTITY euart
-#define UAIO_ARG1 struct euart_query *
+#define UAIO_ENTITY euart_reader
 #include "uaio_generic.c"
 
 
 int
-euart_init(struct euart *u, uart_config_t *config, int no, int txpin,
-        int rxpin, int flags) {
+euart_device_init(struct euart_device *d, uart_config_t *config, int no, \
+        int txpin, int rxpin, int flags) {
     // int intr_alloc_flags = 0;
 	// #if CONFIG_UART_ISR_IN_IRAM
 	//     intr_alloc_flags = ESP_INTR_FLAG_IRAM;
@@ -47,8 +46,8 @@ euart_init(struct euart *u, uart_config_t *config, int no, int txpin,
     // }
 
     if (flags & EUIF_STDIO) {
-        u->infd = STDIN_FILENO;
-        u->outfd = STDOUT_FILENO;
+        d->infd = STDIN_FILENO;
+        d->outfd = STDOUT_FILENO;
     }
     else {
         char path[16];
@@ -63,87 +62,66 @@ euart_init(struct euart *u, uart_config_t *config, int no, int txpin,
             return -1;
         }
 
-        u->infd = fd;
-        u->outfd = fd;
+        d->infd = fd;
+        d->outfd = fd;
     }
 
-    u->no = no;
-    u->flags = flags;
+    d->no = no;
+    d->flags = flags;
     return 0;
 }
 
 
 ASYNC
-euart_getcA(struct uaio_task *self, struct euart *u, struct euart_getc *g) {
+euart_readA(struct uaio_task *self, struct euart_reader *r) {
     int ret;
+    struct euart_device *d = r->device;
     UAIO_BEGIN(self);
 
-doread:
-    errno = 0;
-    ret = read(u->infd, &g->c, 1);
-    if (ret == 1) {
-        g->status = EUCS_OK;
-    }
-    else if ((ret == -1) && UAIO_MUSTWAIT(errno)) {
-        goto dowait;
-    }
-    else {
-        g->status = EUCS_ERROR;
-    }
+    DEBUG("reading...");
+    r->status = EUTS_OK;
+    while (r->bytes < r->max) {
+        errno = 0;
+        ret = read(d->infd, r->buff + r->bytes, 1);
+        DEBUG("ret: %d", ret);
 
-    UAIO_RETURN(self);
-
-dowait:
-    if (g->timeout_us) {
-        UAIO_FILE_TWAIT(self, u->infd, UAIO_IN, g->timeout_us);
-        if (UAIO_FILE_TIMEDOUT(self)) {
-            g->status = EUCS_TIMEDOUT;
-            UAIO_RETURN(self);
+        /* eof */
+        if (ret == 0) {
+            r->status = EUTS_EOF;
+            UAIO_THROW(self);
         }
-    }
-    else {
-        UAIO_FILE_AWAIT(self, u->infd, UAIO_IN);
-    }
 
-    goto doread;
+        /* error */
+        if ((ret == -1) && (!UAIO_MUSTWAIT(errno))) {
+            ERROR("Read error");
+            r->status = EUTS_ERROR;
+            UAIO_THROW(self);
+        }
+        /* read again later, nonblocking wait */
+        else {
+            DEBUG("EAGAIN");
+            /* wait until specific timeout */
+            if (r->timeout_us) {
+                DEBUG("TWAIT: %ld", r->timeout_us);
+                UAIO_FILE_TWAIT(self, d->infd, UAIO_IN, r->timeout_us);
+                if (UAIO_FILE_TIMEDOUT(self)) {
+                    r->status = EUTS_TIMEDOUT;
+                    break;
+                }
+            }
+            /* wait forever */
+            else {
+                DEBUG("WAIT for ever");
+                UAIO_FILE_AWAIT(self, d->infd, UAIO_IN);
+            }
+
+            /* file is ready, continue reading... */
+            continue;
+        }
+
+        r->bytes += ret;
+    }
 
     UAIO_FINALLY(self);
     errno = 0;
 }
-
-
-ASYNC
-euart_readA(struct uaio_task *self, struct euart *u, struct euart_read *r) {
-    UAIO_BEGIN(self);
-
-    while (r->bufflen < r->max) {
-        EUART_AWAIT(self, euart_getcA, u, r);
-        if (r->status != EUCS_OK) {
-            break;
-        }
-
-        r->buff[r->bufflen++] = r->c;
-    }
-
-    r->buff[r->bufflen] = '\0';
-    UAIO_FINALLY(self);
-}
-
-
-// ASYNC
-// euart_retryA(struct uaio_task *self, struct euart *u,
-//         struct euart_chat *c) {
-//     UAIO_BEGIN(self);
-//     c->query.str = "AT";
-//     c->flags = MQF_IGNOREEMPTYLINES;
-//     c->status = MQS_TOUT;
-//     c->timebufflen = 1000000;
-//     c->answersize = 0;
-//     UAIO_AWAIT(self, euart, euart_dialogueA, u->uart, c);
-//     while (c->status != MQS_OK) {
-//         UAIO_SLEEP(self, c->);
-//         c->answersize = 0;
-//         UAIO_AWAIT(self, modem, modem_queryA, m, c);
-//     }
-//     UAIO_FINALLY(self);
-// }

@@ -8,7 +8,8 @@ dependencies:
   idf:
     version: ">=4.1.0"
   elog:
-    git: git@github.com:pylover/elog.git
+    path: ../elog
+    # git: git@github.com:pylover/elog.git
   uaio:
     path: ../uaio
     # git: git@github.com:pylover/uaio.git
