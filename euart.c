@@ -78,12 +78,14 @@ euart_readA(struct uaio_task *self, struct euart_reader *r) {
     struct euart_device *d = r->device;
     UAIO_BEGIN(self);
 
-    DEBUG("reading...");
     r->status = EUTS_OK;
-    while (r->bytes < r->max) {
+    while (r->bytes < r->maxbytes) {
         errno = 0;
         ret = read(d->infd, r->buff + r->bytes, 1);
-        DEBUG("ret: %d", ret);
+        if (ret > 0) {
+            r->bytes += ret;
+            continue;
+        }
 
         /* eof */
         if (ret == 0) {
@@ -96,30 +98,27 @@ euart_readA(struct uaio_task *self, struct euart_reader *r) {
             ERROR("Read error");
             r->status = EUTS_ERROR;
             UAIO_THROW(self);
+       }
+
+        /* read again later (nonblocking wait) */
+        if (r->bytes < r->minbytes) {
+            /* wait until data available */
+            UAIO_FILE_AWAIT(self, d->infd, UAIO_IN);
         }
-        /* read again later, nonblocking wait */
+        else if (r->timeout_us) {
+            /* wait until timeout */
+            UAIO_FILE_TWAIT(self, d->infd, UAIO_IN, r->timeout_us);
+            if (UAIO_FILE_TIMEDOUT(self)) {
+                r->status = EUTS_TIMEDOUT;
+                break;
+            }
+        }
         else {
-            DEBUG("EAGAIN");
-            /* wait until specific timeout */
-            if (r->timeout_us) {
-                DEBUG("TWAIT: %ld", r->timeout_us);
-                UAIO_FILE_TWAIT(self, d->infd, UAIO_IN, r->timeout_us);
-                if (UAIO_FILE_TIMEDOUT(self)) {
-                    r->status = EUTS_TIMEDOUT;
-                    break;
-                }
-            }
-            /* wait forever */
-            else {
-                DEBUG("WAIT for ever");
-                UAIO_FILE_AWAIT(self, d->infd, UAIO_IN);
-            }
-
-            /* file is ready, continue reading... */
-            continue;
+            /* return immediately */
+            break;
         }
 
-        r->bytes += ret;
+        /* the file is ready, continue reading... */
     }
 
     UAIO_FINALLY(self);

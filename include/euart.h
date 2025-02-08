@@ -35,7 +35,7 @@ enum euart_taskstatus {
 struct euart_task {
     /* set by user */
     unsigned long timeout_us;
-    void *backref;
+    struct euart_device *device;
 
     /* set by machine */
     enum euart_taskstatus status;
@@ -46,9 +46,9 @@ typedef struct euart_reader {
     struct euart_task;
 
     /* set by user */
-    struct euart_device *device;
     char *buff;
-    int max;
+    unsigned int maxbytes;
+    unsigned int minbytes;
 
     /* set by machine */
     int bytes;
@@ -75,4 +75,6 @@ euart_readA(struct uaio_task *self, struct euart_reader *r);
     UAIO_AWAIT(task, euart_reader, euart_readA, reader)
 
 
-#endif  // EUART_H_
+// int
+// euart_write(struct uaio_task *self
+#endif  // EUART_H
