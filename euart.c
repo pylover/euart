@@ -9,6 +9,11 @@
 #include "euart.h"
 
 
+#undef ERING_PREFIX
+#define ERING_PREFIX u8
+#include "ering.c"
+
+
 #undef UAIO_ARG1
 #undef UAIO_ARG2
 #undef UAIO_ENTITY
@@ -72,18 +77,47 @@ euart_device_init(struct euart_device *d, uart_config_t *config, int no, \
 }
 
 
+int
+euart_reader_init(struct euart_reader *reader, struct euart_device *dev,
+        unsigned int timeout_us, uint8_t ringmaskbits) {
+    if (reader == NULL) {
+        return -1;
+    }
+
+    reader->timeout_us = timeout_us;
+    reader->device = dev;
+
+    if (u8ring_init(&reader->ring, ringmaskbits)) {
+        return -1;
+    }
+
+    return 0;
+}
+
+
+int
+euart_reader_deinit(struct euart_reader *reader) {
+    if (reader == NULL) {
+        return -1;
+    }
+
+    return u8ring_deinit(&reader->ring);
+}
+
+
 ASYNC
 euart_readA(struct uaio_task *self, struct euart_reader *r) {
     int ret;
     struct euart_device *d = r->device;
+    struct u8ring *ring = &r->ring;
     UAIO_BEGIN(self);
 
     r->status = EUTS_OK;
-    while (r->bytes < r->maxbytes) {
+    while (ERING_AVAIL(ring)) {
         errno = 0;
-        ret = read(d->infd, r->buff + r->bytes, 1);
+        ret = read(d->infd, ERING_CUR(ring), 1);
         if (ret > 0) {
-            r->bytes += ret;
+            ERING_INCR(ring);
             continue;
         }
 
@@ -98,10 +132,10 @@ euart_readA(struct uaio_task *self, struct euart_reader *r) {
             ERROR("Read error");
             r->status = EUTS_ERROR;
             UAIO_THROW(self);
-       }
+        }
 
         /* read again later (nonblocking wait) */
-        if (r->bytes < r->minbytes) {
+        if (ERING_USED(ring) < r->minbytes) {
             /* wait until data available */
             UAIO_FILE_AWAIT(self, d->infd, UAIO_IN);
         }

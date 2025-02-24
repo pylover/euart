@@ -7,6 +7,12 @@
 #include <uaio.h>
 
 
+typedef char u8_t;
+#undef ERING_PREFIX
+#define ERING_PREFIX u8
+#include "ering.h"
+
+
 #define EUIF_STDIO  0x1
 #define EUIF_NONBLOCK 0x2
 
@@ -44,14 +50,10 @@ struct euart_task {
 
 typedef struct euart_reader {
     struct euart_task;
+    struct u8ring ring;
 
     /* set by user */
-    char *buff;
-    unsigned int maxbytes;
     unsigned int minbytes;
-
-    /* set by machine */
-    int bytes;
 } euart_reader_t;
 
 
@@ -67,6 +69,15 @@ euart_device_init(struct euart_device *d, uart_config_t *config, int no, \
         int txpin, int rxpin, int flags);
 
 
+int
+euart_reader_init(struct euart_reader *reader, struct euart_device *dev,
+        unsigned int timeout_us, uint8_t ringmaskbits);
+
+
+int
+euart_reader_deinit(struct euart_reader *reader);
+
+
 ASYNC
 euart_readA(struct uaio_task *self, struct euart_reader *r);
 
@@ -75,6 +86,4 @@ euart_readA(struct uaio_task *self, struct euart_reader *r);
     UAIO_AWAIT(task, euart_reader, euart_readA, reader)
 
 
-// int
-// euart_write(struct uaio_task *self
 #endif  // EUART_H
