@@ -33,7 +33,9 @@ typedef struct ERING_NAME() {
 #define ERING_USED(b) ERING_CALC(b, (b)->w - (b)->r)
 #define ERING_AVAIL(b) ERING_CALC(b, (b)->r - ((b)->w + 1))
 #define ERING_INCR(b) (b)->w = ERING_CALC(b, (b)->w + 1)
-#define ERING_CUR(b) ((b)->buffer + (b)->w)
+#define ERING_WPTR(b) ((b)->buffer + (b)->w)
+#define ERING_RPTR(b) ((b)->buffer + (b)->r)
+#define ERING_GET(b) ((b)->buffer[(b)->r])
 #define ERING_ISEMPTY(b) (ERING_USED(b) == 0)
 #define ERING_ISFULL(b) (ERING_AVAIL(b) == 0)
 #define ERING_USED_TOEND(b) \
@@ -52,7 +54,11 @@ ERING_NAME1(_deinit) (struct ERING_NAME() *ring);
 
 
 int
-ERING_NAME1(_writeout) (struct ERING_NAME() *ring, int fd, size_t count);
+ERING_NAME1(_popwrite) (struct ERING_NAME() *ring, int fd, size_t count);
+
+
+ERING_BUFFTYPE()
+ERING_NAME1(_pop) (struct ERING_NAME() *ring);
 
 
 #endif

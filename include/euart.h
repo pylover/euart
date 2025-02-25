@@ -82,7 +82,8 @@ ASYNC
 euart_readA(struct uaio_task *self, struct euart_reader *r);
 
 
-#define EUART_AREAD(task, reader) \
+#define EUART_AREAD(task, reader, m) \
+    (reader)->minbytes = m; \
     UAIO_AWAIT(task, euart_reader, euart_readA, reader)
 
 

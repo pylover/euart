@@ -1,6 +1,5 @@
 #include <stdlib.h>
 #include <unistd.h>
-// #include <string.h>
 
 
 #define _MIN(a, b) ((a) < (b)? (a): (b))
@@ -49,7 +48,7 @@ ERING_NAME1(_deinit) (struct ERING_NAME() *ring) {
 
 
 int
-ERING_NAME1(_writeout) (struct ERING_NAME() *ring, int fd, size_t count) {
+ERING_NAME1(_popwrite) (struct ERING_NAME() *ring, int fd, size_t count) {
     int bytes;
     int toend;
     int toread;
@@ -93,6 +92,38 @@ ERING_NAME1(_writeout) (struct ERING_NAME() *ring, int fd, size_t count) {
 
     return ret;
 }
+
+
+ERING_BUFFTYPE()
+ERING_NAME1(_pop) (struct ERING_NAME() *ring) {
+    ERING_BUFFTYPE() c = ring->buffer[ring->r];
+    ring->r = ERING_CALC(ring, ring->r + 1);
+    return c;
+}
+
+
+// ssize_t
+// ERING_NAME(pop) (ERING_T() *q, ERING_TYPE *data, size_t count) {
+//     if (ERING_USED(q) < count) {
+//         return -1;
+//     }
+//
+//     size_t toend = ERING_USED_TOEND(q);
+//     ssize_t total = ERING_MIN(toend, count);
+//
+//     memcpy(data, q->buffer + q->r, ERING_BYTES(total));
+//     q->r = ERING_READER_CALC(q, total);
+//     count -= total;
+//
+//     if (count) {
+//         count = ERING_MIN(ERING_USED_TOEND(q), count);
+//         memcpy(data + total, q->buffer, ERING_BYTES(count));
+//         q->r += count;
+//         total += count;
+//     }
+//
+//     return total;
+// }
 // enum ering_filestatus
 // ERING_NAME(popwrite) (ERING_T() *q, int fd, size_t *count) {
 //     int used;
@@ -135,28 +166,6 @@ ERING_NAME1(_writeout) (struct ERING_NAME() *ring, int fd, size_t count) {
 // }
 //
 //
-// ssize_t
-// ERING_NAME(pop) (ERING_T() *q, ERING_TYPE *data, size_t count) {
-//     if (ERING_USED(q) < count) {
-//         return -1;
-//     }
-//
-//     size_t toend = ERING_USED_TOEND(q);
-//     ssize_t total = ERING_MIN(toend, count);
-//
-//     memcpy(data, q->buffer + q->r, ERING_BYTES(total));
-//     q->r = ERING_READER_CALC(q, total);
-//     count -= total;
-//
-//     if (count) {
-//         count = ERING_MIN(ERING_USED_TOEND(q), count);
-//         memcpy(data + total, q->buffer, ERING_BYTES(count));
-//         q->r += count;
-//         total += count;
-//     }
-//
-//     return total;
-// }
 //
 //
 // int

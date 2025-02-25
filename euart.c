@@ -115,7 +115,7 @@ euart_readA(struct uaio_task *self, struct euart_reader *r) {
     r->status = EUTS_OK;
     while (ERING_AVAIL(ring)) {
         errno = 0;
-        ret = read(d->infd, ERING_CUR(ring), 1);
+        ret = read(d->infd, ERING_WPTR(ring), 1);
         if (ret > 0) {
             ERING_INCR(ring);
             continue;
