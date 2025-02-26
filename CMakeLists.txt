@@ -6,7 +6,7 @@ set(sources
 idf_component_register(
   SRCS "${sources}"
   INCLUDE_DIRS "include"
-  REQUIRES elog esp_driver_uart esp_hw_support uaio
+  REQUIRES esp_driver_uart esp_hw_support uaio ering
 )
 
 

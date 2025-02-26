@@ -2,15 +2,3 @@ version: "1.0.0"
 description: "ESP32 C AsyncIO (non-blocking IO) UART library."
 url: "https://github.com/pylover/euart"
 license: "MIT"
-
-dependencies:
-  ## Required IDF version
-  idf:
-    version: ">=4.1.0"
-  elog:
-    path: ../elog
-    # git: git@github.com:pylover/elog.git
-  uaio:
-    path: ../uaio
-    # git: git@github.com:pylover/uaio.git
-
