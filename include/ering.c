@@ -94,14 +94,6 @@ ERING_NAME1(_popwrite) (struct ERING_NAME() *ring, int fd, size_t count) {
 }
 
 
-ERING_BUFFTYPE()
-ERING_NAME1(_pop) (struct ERING_NAME() *ring) {
-    ERING_BUFFTYPE() c = ring->buffer[ring->r];
-    ring->r = ERING_CALC(ring, ring->r + 1);
-    return c;
-}
-
-
 // ssize_t
 // ERING_NAME(pop) (ERING_T() *q, ERING_TYPE *data, size_t count) {
 //     if (ERING_USED(q) < count) {

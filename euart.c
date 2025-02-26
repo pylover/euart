@@ -18,6 +18,8 @@
 #undef UAIO_ARG2
 #undef UAIO_ENTITY
 #define UAIO_ENTITY euart_reader
+#define UAIO_ARG1 unsigned int
+#define UAIO_ARG2 unsigned long
 #include "uaio_generic.c"
 
 
@@ -79,12 +81,11 @@ euart_device_init(struct euart_device *d, uart_config_t *config, int no, \
 
 int
 euart_reader_init(struct euart_reader *reader, struct euart_device *dev,
-        unsigned int timeout_us, uint8_t ringmaskbits) {
+        uint8_t ringmaskbits) {
     if (reader == NULL) {
         return -1;
     }
 
-    reader->timeout_us = timeout_us;
     reader->device = dev;
 
     if (u8ring_init(&reader->ring, ringmaskbits)) {
@@ -105,16 +106,30 @@ euart_reader_deinit(struct euart_reader *reader) {
 }
 
 
+/** Read from UART device until the `reader->minbytes`.
+ * */
 ASYNC
-euart_readA(struct uaio_task *self, struct euart_reader *r) {
+euart_readA(struct uaio_task *self, struct euart_reader *r,
+        unsigned int minbytes, unsigned long timeout_us) {
     int ret;
     struct euart_device *d = r->device;
     struct u8ring *ring = &r->ring;
     UAIO_BEGIN(self);
 
+    if (minbytes >= ring->mask) {
+        r->status = EUTS_ERROR;
+        UAIO_THROW2(self, EINVAL);
+    }
+
     r->status = EUTS_OK;
-    while (ERING_AVAIL(ring)) {
+    while (ERING_USED(ring) < minbytes) {
         errno = 0;
+
+        if (ERING_AVAIL(ring) == 0) {
+            r->status = EUTS_ERROR;
+            UAIO_THROW2(self, ENOBUFS);
+        }
+
         ret = read(d->infd, ERING_WPTR(ring), 1);
         if (ret > 0) {
             ERING_INCR(ring);
@@ -135,24 +150,20 @@ euart_readA(struct uaio_task *self, struct euart_reader *r) {
         }
 
         /* read again later (nonblocking wait) */
-        if (ERING_USED(ring) < r->minbytes) {
-            /* wait until data available */
-            UAIO_FILE_AWAIT(self, d->infd, UAIO_IN);
-        }
-        else if (r->timeout_us) {
+        if (timeout_us) {
             /* wait until timeout */
-            UAIO_FILE_TWAIT(self, d->infd, UAIO_IN, r->timeout_us);
+            UAIO_FILE_TWAIT(self, d->infd, UAIO_IN, timeout_us);
             if (UAIO_FILE_TIMEDOUT(self)) {
                 r->status = EUTS_TIMEDOUT;
                 break;
             }
         }
         else {
-            /* return immediately */
-            break;
+            /* wait until data available */
+            UAIO_FILE_AWAIT(self, d->infd, UAIO_IN);
         }
 
-        /* the file is ready, continue reading... */
+        /* file is ready, continue reading... */
     }
 
     UAIO_FINALLY(self);

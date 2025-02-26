@@ -40,7 +40,6 @@ enum euart_taskstatus {
 /* abstract */
 struct euart_task {
     /* set by user */
-    unsigned long timeout_us;
     struct euart_device *device;
 
     /* set by machine */
@@ -51,9 +50,6 @@ struct euart_task {
 typedef struct euart_reader {
     struct euart_task;
     struct u8ring ring;
-
-    /* set by user */
-    unsigned int minbytes;
 } euart_reader_t;
 
 
@@ -61,6 +57,8 @@ typedef struct euart_reader {
 #undef UAIO_ARG2
 #undef UAIO_ENTITY
 #define UAIO_ENTITY euart_reader
+#define UAIO_ARG1 unsigned int
+#define UAIO_ARG2 unsigned long
 #include "uaio_generic.h"
 
 
@@ -71,7 +69,7 @@ euart_device_init(struct euart_device *d, uart_config_t *config, int no, \
 
 int
 euart_reader_init(struct euart_reader *reader, struct euart_device *dev,
-        unsigned int timeout_us, uint8_t ringmaskbits);
+        uint8_t ringmaskbits);
 
 
 int
@@ -79,12 +77,15 @@ euart_reader_deinit(struct euart_reader *reader);
 
 
 ASYNC
-euart_readA(struct uaio_task *self, struct euart_reader *r);
+euart_readA(struct uaio_task *self, struct euart_reader *r,
+        unsigned int minbytes, unsigned long timeout_us);
 
 
-#define EUART_AREAD(task, reader, m) \
-    (reader)->minbytes = m; \
-    UAIO_AWAIT(task, euart_reader, euart_readA, reader)
+#define EUART_AREADT(task, reader, minbytes, timeout) \
+    UAIO_AWAIT(task, euart_reader, euart_readA, reader, minbytes, timeout)
+
+#define EUART_AREAD(task, reader, minbytes) \
+    EUART_AREADT(task, reader, minbytes, 0)
 
 
 #endif  // EUART_H

@@ -43,6 +43,9 @@ typedef struct ERING_NAME() {
       int n = ((b)->w + end) & (b)->mask; \
       n < end ? n : end;})
 #define ERING_SKIP(b, n) (b)->r = ERING_CALC((b), (b)->r + (n))
+#define ERING_POP(b) \
+    ring->buffer[ring->r]; \
+    (b)->r = ERING_CALC(b, (b)->r + 1)
 
 
 int
@@ -55,10 +58,6 @@ ERING_NAME1(_deinit) (struct ERING_NAME() *ring);
 
 int
 ERING_NAME1(_popwrite) (struct ERING_NAME() *ring, int fd, size_t count);
-
-
-ERING_BUFFTYPE()
-ERING_NAME1(_pop) (struct ERING_NAME() *ring);
 
 
 #endif
