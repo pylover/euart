@@ -30,6 +30,8 @@ euart_device_init(struct euart_device *d, uart_config_t *config, int no, \
 	// #if CONFIG_UART_ISR_IN_IRAM
 	//     intr_alloc_flags = ESP_INTR_FLAG_IRAM;
 	// #endif
+    // esp_vfs_dev_uart_port_set_tx_line_endings(UART_NUM_0,
+    //         esp_line_endings_t mode);
 
     // tx, rx, rts, cts
     if (uart_set_pin(no, txpin, rxpin, UART_PIN_NO_CHANGE,
@@ -73,20 +75,17 @@ euart_device_init(struct euart_device *d, uart_config_t *config, int no, \
         d->outfd = fd;
     }
 
-    d->no = no;
-    d->flags = flags;
     return 0;
 }
 
 
 int
-euart_reader_init(struct euart_reader *reader, struct euart_device *dev,
-        uint8_t ringmaskbits) {
+euart_reader_init(struct euart_reader *reader, int fd, uint8_t ringmaskbits) {
     if (reader == NULL) {
         return -1;
     }
 
-    reader->device = dev;
+    reader->fd = fd;
 
     if (u8ring_init(&reader->ring, ringmaskbits)) {
         return -1;
@@ -112,7 +111,6 @@ ASYNC
 euart_readA(struct uaio_task *self, struct euart_reader *r,
         unsigned int minbytes, unsigned long timeout_us) {
     int ret;
-    struct euart_device *d = r->device;
     struct u8ring *ring = &r->ring;
     UAIO_BEGIN(self);
 
@@ -130,9 +128,9 @@ euart_readA(struct uaio_task *self, struct euart_reader *r,
             UAIO_THROW2(self, ENOBUFS);
         }
 
-        ret = read(d->infd, ERING_WPTR(ring), 1);
+        ret = read(r->fd, ERING_HEADPTR(ring), 1);
         if (ret > 0) {
-            ERING_INCR(ring);
+            ERING_INCRHEAD(ring);
             continue;
         }
 
@@ -152,7 +150,7 @@ euart_readA(struct uaio_task *self, struct euart_reader *r,
         /* read again later (nonblocking wait) */
         if (timeout_us) {
             /* wait until timeout */
-            UAIO_FILE_TWAIT(self, d->infd, UAIO_IN, timeout_us);
+            UAIO_FILE_TWAIT(self, r->fd, UAIO_IN, timeout_us);
             if (UAIO_FILE_TIMEDOUT(self)) {
                 r->status = EUTS_TIMEDOUT;
                 break;
@@ -160,7 +158,7 @@ euart_readA(struct uaio_task *self, struct euart_reader *r,
         }
         else {
             /* wait until data available */
-            UAIO_FILE_AWAIT(self, d->infd, UAIO_IN);
+            UAIO_FILE_AWAIT(self, r->fd, UAIO_IN);
         }
 
         /* file is ready, continue reading... */

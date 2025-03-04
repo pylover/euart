@@ -22,8 +22,6 @@ typedef char u8_t;
 
 
 typedef struct euart_device {
-    int no;
-    int flags;
     int infd;
     int outfd;
 } euart_device_t;
@@ -37,18 +35,12 @@ enum euart_taskstatus {
 };
 
 
-/* abstract */
-struct euart_task {
+typedef struct euart_reader {
     /* set by user */
-    struct euart_device *device;
+    int fd;
 
     /* set by machine */
     enum euart_taskstatus status;
-};
-
-
-typedef struct euart_reader {
-    struct euart_task;
     struct u8ring ring;
 } euart_reader_t;
 
@@ -68,8 +60,7 @@ euart_device_init(struct euart_device *d, uart_config_t *config, int no, \
 
 
 int
-euart_reader_init(struct euart_reader *reader, struct euart_device *dev,
-        uint8_t ringmaskbits);
+euart_reader_init(struct euart_reader *reader, int fd, uint8_t ringmaskbits);
 
 
 int
